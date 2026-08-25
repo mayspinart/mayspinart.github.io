@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.mayspinart.twa",
+        "sha256_cert_fingerprints": ["B6:35:29:32:FC:AE:AD:37:30:03:FF:21:C2:69:00:10:E2:06:76:36:27:AA:5B:4F:C8:C4:77:57:C7:C7:8E:95"]
+      }
+    }]
