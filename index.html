@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Workout Tracker</title>
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: #0a0a0a;
+    color: #f5f5f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 40px;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 24px 16px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #ea580c; font-weight: 600; margin-bottom: 4px; }
+  h1 { font-size: 24px; font-weight: 700; margin: 0 0 20px; }
+  .tabs { display: flex; gap: 4px; background: #171717; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; padding: 10px; border-radius: 7px; border: none; background: transparent; color: #a3a3a3; font-size: 14px; font-weight: 500; text-align: center; cursor: pointer; }
+  .tab.active { background: #ea580c; color: white; }
+  .section-label { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: #737373; font-weight: 600; margin: 20px 0 8px; border-bottom: 1px solid #262626; padding-bottom: 6px; }
+  .exercise { margin-bottom: 12px; }
+  .ex-name { font-size: 14px; color: #e5e5e5; margin-bottom: 6px; }
+  .sets { display: flex; gap: 8px; }
+  .sets input {
+    width: 100%; background: #171717; border: 1px solid #262626; border-radius: 8px;
+    padding: 10px 0; text-align: center; font-size: 14px; color: #f5f5f5;
+  }
+  .sets input::placeholder { color: #525252; }
+  .sets input:focus { outline: none; border-color: #ea580c; }
+  .save-btn {
+    width: 100%; background: #ea580c; color: white; font-weight: 600; padding: 14px;
+    border: none; border-radius: 10px; font-size: 14px; margin-top: 16px; cursor: pointer;
+  }
+  .save-btn:active { background: #c2410c; }
+  .error { color: #f87171; font-size: 13px; margin-top: 8px; }
+  .empty { text-align: center; color: #737373; font-size: 14px; padding: 48px 0; }
+  .card { background: #171717; border: 1px solid #262626; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .card-date { font-size: 14px; font-weight: 600; }
+  .del { color: #525252; font-size: 12px; background: none; border: none; cursor: pointer; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+  .stat-name { color: #737373; }
+  .stat-val { color: #e5e5e5; font-weight: 500; }
+  .stat { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Bodyweight + Vest</div>
+  <h1>Session Log</h1>
+  <div class="tabs">
+    <button class="tab active" id="tabLog" onclick="setView('log')">New session</button>
+    <button class="tab" id="tabHist" onclick="setView('history')">History (<span id="histCount">0</span>)</button>
+  </div>
+  <div id="logView"></div>
+  <div id="historyView" style="display:none"></div>
+</div>
+
+<script>
+const EXERCISES = {
+  upper: [
+    { key: 'pullups', name: 'Pull-ups', sets: 3 },
+    { key: 'chinups', name: 'Chin-ups', sets: 3 },
+    { key: 'pushups', name: 'Push-ups', sets: 3 },
+    { key: 'pike', name: 'Pike push-ups', sets: 3 },
+    { key: 'rows', name: 'Inverted rows', sets: 3 },
+    { key: 'hangs', name: 'Dead hangs (sec)', sets: 2 },
+  ],
+  lower: [
+    { key: 'squats', name: 'Squats', sets: 3 },
+    { key: 'lunges', name: 'Lunges (w/ vest)', sets: 3 },
+    { key: 'calves', name: 'Calf raises (w/ vest)', sets: 3 },
+    { key: 'hollow', name: 'Hollow hold (sec)', sets: 3 },
+  ],
+};
+const ALL_EX = [...EXERCISES.upper, ...EXERCISES.lower];
+
+let history = JSON.parse(localStorage.getItem('workout_sessions') || '[]');
+let current = {};
+function resetCurrent() {
+  current = {};
+  ALL_EX.forEach(ex => current[ex.key] = Array(ex.sets).fill(''));
+}
+resetCurrent();
+
+function renderLog() {
+  let html = '';
+  ['upper', 'lower'].forEach(section => {
+    html += `<div class="section-label">${section === 'upper' ? 'Upper' : 'Lower'}</div>`;
+    EXERCISES[section].forEach(ex => {
+      html += `<div class="exercise"><div class="ex-name">${ex.name}</div><div class="sets">`;
+      for (let i = 0; i < ex.sets; i++) {
+        html += `<input type="number" inputmode="numeric" placeholder="S${i+1}" value="${current[ex.key][i]}" onchange="updateSet('${ex.key}',${i},this.value)">`;
+      }
+      html += `</div></div>`;
+    });
+  });
+  html += `<div id="errBox"></div>`;
+  html += `<button class="save-btn" onclick="saveSession()">Save session</button>`;
+  document.getElementById('logView').innerHTML = html;
+}
+
+function updateSet(key, idx, val) {
+  current[key][idx] = val;
+}
+
+function saveSession() {
+  const hasData = Object.values(current).some(arr => arr.some(v => v !== ''));
+  if (!hasData) {
+    document.getElementById('errBox').innerHTML = `<div class="error">Log at least one set before saving.</div>`;
+    return;
+  }
+  history.unshift({ date: new Date().toISOString(), data: JSON.parse(JSON.stringify(current)) });
+  localStorage.setItem('workout_sessions', JSON.stringify(history));
+  resetCurrent();
+  setView('history');
+}
+
+function deleteSession(idx) {
+  history.splice(idx, 1);
+  localStorage.setItem('workout_sessions', JSON.stringify(history));
+  renderHistory();
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function renderHistory() {
+  document.getElementById('histCount').textContent = history.length;
+  if (history.length === 0) {
+    document.getElementById('historyView').innerHTML = `<div class="empty">No sessions logged yet.</div>`;
+    return;
+  }
+  let html = '';
+  history.forEach((entry, i) => {
+    html += `<div class="card"><div class="card-top"><div class="card-date">${fmtDate(entry.date)}</div><button class="del" onclick="deleteSession(${i})">delete</button></div><div class="stats">`;
+    ALL_EX.forEach(ex => {
+      const sets = (entry.data[ex.key] || []).filter(v => v !== '');
+      if (sets.length === 0) return;
+      html += `<div class="stat"><span class="stat-name">${ex.name}</span> <span class="stat-val">${sets.join(',')}</span></div>`;
+    });
+    html += `</div></div>`;
+  });
+  document.getElementById('historyView').innerHTML = html;
+}
+
+function setView(view) {
+  document.getElementById('tabLog').classList.toggle('active', view === 'log');
+  document.getElementById('tabHist').classList.toggle('active', view === 'history');
+  document.getElementById('logView').style.display = view === 'log' ? 'block' : 'none';
+  document.getElementById('historyView').style.display = view === 'history' ? 'block' : 'none';
+  if (view === 'log') renderLog();
+  if (view === 'history') renderHistory();
+}
+
+renderLog();
+renderHistory();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
